@@ -212,7 +212,7 @@
         + '<td>' + echapper(nomAffiche) + '</td>'
         + '<td>' + echapper(p.prenom ?? '') + '</td>'
         + '<td>' + echapper(p.gs_rh ?? '') + '</td>'
-        + '<td>' + echapper(p.date_naissance ?? '') + '</td>'
+        + '<td>' + echapper(formaterDate(p.date_naissance)) + '</td>'
         + '</tr>';
     }
     html += '</table>';
@@ -223,6 +223,13 @@
         if (p) preparerModification(p);
       });
     }
+  }
+
+  // Affiche une date aaaa-mm-jj au format jj/mm/aaaa
+  function formaterDate(date) {
+    if (!date) return '';
+    const [a, m, j] = date.split('-');
+    return a.length === 4 ? j + '/' + m + '/' + a : date;
   }
 
   function echapper(texte) {
