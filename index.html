@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partogramme — Patientes</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f4f6f9;
+    color: #222;
+  }
+  header {
+    background: #2c5f8f;
+    color: #fff;
+    padding: 16px 24px;
+  }
+  header h1 { margin: 0; font-size: 22px; }
+  main {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+  section {
+    background: #fff;
+    border: 1px solid #dde3ea;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  h2 { margin-top: 0; font-size: 18px; color: #2c5f8f; }
+  form label {
+    display: block;
+    margin: 12px 0 4px;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  form input, form select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #b8c2cc;
+    border-radius: 4px;
+    font-size: 15px;
+  }
+  .boutons { margin-top: 16px; }
+  button {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 4px;
+    font-size: 15px;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  #btn-enregistrer { background: #2c5f8f; color: #fff; }
+  #btn-annuler { background: #e4e9ef; color: #333; }
+  #message {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: none;
+  }
+  .ok { background: #e2f2e2; color: #1e6b1e; }
+  .erreur { background: #fbe4e4; color: #a11; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e4e9ef;
+  }
+  th { background: #eef2f7; }
+  tr.cliquable { cursor: pointer; }
+  tr.cliquable:hover { background: #f0f5fb; }
+  .vide { color: #888; font-style: italic; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Partogramme — Patientes</h1>
+</header>
+<main>
+  <section>
+    <h2 id="titre-formulaire">Ajouter une patiente</h2>
+    <form id="formulaire">
+      <label for="nom">Nom de naissance</label>
+      <input id="nom" required>
+
+      <label for="nom_marital">Nom marital (facultatif)</label>
+      <input id="nom_marital">
+
+      <label for="prenom">Prénom</label>
+      <input id="prenom" required>
+
+      <label for="gs_rh">Groupe sanguin</label>
+      <select id="gs_rh">
+        <option value="">Inconnu</option>
+        <option>A+</option>
+        <option>A-</option>
+        <option>O+</option>
+        <option>O-</option>
+        <option>AB+</option>
+        <option>AB-</option>
+        <option value="inconnu">Inconnu</option>
+      </select>
+
+      <label for="date_naissance">Date de naissance</label>
+      <input id="date_naissance" type="date">
+
+      <div class="boutons">
+        <button type="submit" id="btn-enregistrer">Enregistrer</button>
+        <button type="button" id="btn-annuler" hidden>Annuler</button>
+      </div>
+      <div id="message"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>Liste des patientes</h2>
+    <div id="tableau">Chargement…</div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const base = window.supabase.createClient(
+    'https://veuzjdbmtvaynqxxandp.supabase.co',
+    'sb_publishable_-OkiQuX_AfZYXrGKTl9APQ_Js9_k9XY'
+  );
+
+  const form = document.getElementById('formulaire');
+  const message = document.getElementById('message');
+  const titre = document.getElementById('titre-formulaire');
+  const boutonAnnuler = document.getElementById('btn-annuler');
+  let idEnCours = null; // si non null : on modifie une patiente existante
+
+  boutonAnnuler.addEventListener('click', preparerAjout);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const patiente = {
+      nom: document.getElementById('nom').value.trim(),
+      nom_marital: document.getElementById('nom_marital').value.trim() || null,
+      prenom: document.getElementById('prenom').value.trim(),
+      gs_rh: document.getElementById('gs_rh').value || 'inconnu',
+      date_naissance: document.getElementById('date_naissance').value || null
+    };
+    let erreur;
+    if (idEnCours) {
+      ({ error: erreur } = await base.from('Patiente').update(patiente).eq('id_patiente', idEnCours));
+    } else {
+      ({ error: erreur } = await base.from('Patiente').insert(patiente));
+    }
+    if (erreur) {
+      afficherMessage('Erreur : ' + erreur.message, 'erreur');
+    } else {
+      afficherMessage(idEnCours ? 'Patiente modifiée.' : 'Patiente ajoutée.', 'ok');
+      preparerAjout();
+      chargerPatientes();
+    }
+  });
+
+  function preparerAjout() {
+    idEnCours = null;
+    form.reset();
+    titre.textContent = 'Ajouter une patiente';
+    document.getElementById('btn-enregistrer').textContent = 'Enregistrer';
+    boutonAnnuler.hidden = true;
+  }
+
+  function preparerModification(p) {
+    idEnCours = p.id_patiente;
+    document.getElementById('nom').value = p.nom ?? '';
+    document.getElementById('nom_marital').value = p.nom_marital ?? '';
+    document.getElementById('prenom').value = p.prenom ?? '';
+    document.getElementById('gs_rh').value = p.gs_rh ?? '';
+    document.getElementById('date_naissance').value = p.date_naissance ?? '';
+    titre.textContent = 'Modifier ' + (p.prenom ?? '') + ' ' + (p.nom ?? '');
+    document.getElementById('btn-enregistrer').textContent = 'Enregistrer les modifications';
+    boutonAnnuler.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function afficherMessage(texte, classe) {
+    message.textContent = texte;
+    message.className = classe;
+    message.style.display = 'block';
+  }
+
+  async function chargerPatientes() {
+    const conteneur = document.getElementById('tableau');
+    const { data, error } = await base
+      .from('Patiente')
+      .select('*')
+      .order('id_patiente', { ascending: true });
+    if (error) {
+      conteneur.textContent = 'Impossible de charger la liste : ' + error.message;
+      return;
+    }
+    if (!data.length) {
+      conteneur.innerHTML = '<p class="vide">Aucune patiente enregistrée pour le moment.</p>';
+      return;
+    }
+    let html = '<table><tr><th>Nom</th><th>Prénom</th><th>Groupe sanguin</th><th>Naissance</th></tr>';
+    for (const p of data) {
+      const nomAffiche = p.nom_marital ? p.nom + ' (ép. ' + p.nom_marital + ')' : p.nom;
+      html += '<tr class="cliquable" data-id="' + p.id_patiente + '" title="Cliquez pour modifier">'
+        + '<td>' + echapper(nomAffiche) + '</td>'
+        + '<td>' + echapper(p.prenom ?? '') + '</td>'
+        + '<td>' + echapper(p.gs_rh ?? '') + '</td>'
+        + '<td>' + echapper(p.date_naissance ?? '') + '</td>'
+        + '</tr>';
+    }
+    html += '</table>';
+    conteneur.innerHTML = html;
+    for (const ligne of conteneur.querySelectorAll('tr[data-id]')) {
+      ligne.addEventListener('click', () => {
+        const p = data.find(d => String(d.id_patiente) === ligne.dataset.id);
+        if (p) preparerModification(p);
+      });
+    }
+  }
+
+  function echapper(texte) {
+    const div = document.createElement('div');
+    div.textContent = String(texte);
+    return div.innerHTML;
+  }
+
+  chargerPatientes();
+</script>
+</body>
+</html>
